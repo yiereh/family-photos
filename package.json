@@ -12,9 +12,11 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "wrangler d1 migrations apply family-photos-db --remote"
+		"db:migrate": "wrangler d1 migrations apply family-photos-db --remote",
+		"test": "vitest run"
 	},
 	"devDependencies": {
+		"@cloudflare/vitest-pool-workers": "^0.14.1",
 		"@cloudflare/workers-types": "^4.20260404.1",
 		"@sveltejs/adapter-auto": "^7.0.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.8",
@@ -27,6 +29,7 @@
 		"tailwindcss": "^4.2.2",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1",
+		"vitest": "^4.1.2",
 		"wrangler": "^4.80.0"
 	},
 	"dependencies": {
