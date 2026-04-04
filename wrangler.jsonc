@@ -1,0 +1,32 @@
+{
+	"name": "family-photos",
+	"compatibility_date": "2026-04-04",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// D1 Database
+	"d1_databases": [
+		{
+			"binding": "family_photos_db",
+			"database_name": "family-photos-db",
+			"database_id": "716b5a9b-86df-4ad9-9361-d7eed6383fb2",
+			"remote": true
+		}
+	],
+	// R2 Bucket (photo storage)
+	"r2_buckets": [
+		{
+			"bucket_name": "family-photos-bucket",
+			"binding": "family_photos_bucket",
+			"remote": true
+		}
+	],
+	// KV Namespace (sessions, cache, etc.)
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "8d1ec92d0a7347bf8be0deb00af6ec6f",
+			"remote": true
+		}
+	]
+}
