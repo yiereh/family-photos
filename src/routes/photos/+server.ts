@@ -2,9 +2,16 @@ import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { PhotonImage, SamplingFilter, resize } from "@cf-wasm/photon";
 import { photos } from '$lib/server/db/schema'
+import { desc } from "drizzle-orm";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const THUMBNAIL_MAX_SIDE = 400;
+
+export const GET: RequestHandler = async ({ request, locals, platform }) => {
+  const bucket = platform!.env.BUCKET;
+  const results = await locals.db.select().from(photos).orderBy(desc(photos.uploadedAt));
+  return json(results);
+}
 
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
   const bucket = platform!.env.BUCKET;

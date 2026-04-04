@@ -34,6 +34,7 @@
 	},
 	"dependencies": {
 		"@cf-wasm/photon": "^0.3.4",
-		"drizzle-orm": "^0.45.2"
+		"drizzle-orm": "^0.45.2",
+		"zod": "^4.3.6"
 	}
 }
