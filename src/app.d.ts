@@ -13,7 +13,7 @@ declare global {
 		interface Platform {
 			env: {
 				DB: D1Database;
-				PHOTOS: R2Bucket;
+				BUCKET: R2Bucket;
 				KV: KVNamespace;
 			};
 			context: {
@@ -24,4 +24,4 @@ declare global {
 	}
 }
 
-export {};
+export { };
