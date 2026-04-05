@@ -1,7 +1,10 @@
 {
 	"name": "family-photos",
 	"main": ".svelte-kit/cloudflare/_worker.js",
-	"assets": { "directory": ".svelte-kit/cloudflare", "binding": "ASSETS" },
+	"assets": {
+		"directory": ".svelte-kit/cloudflare",
+		"binding": "ASSETS"
+	},
 	"compatibility_date": "2026-04-04",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -31,5 +34,8 @@
 			"id": "8d1ec92d0a7347bf8be0deb00af6ec6f",
 			"remote": true
 		}
-	]
+	],
+	"vars": {
+		"R2_BUCKET_NAME": "family-photos-bucket"
+	}
 }

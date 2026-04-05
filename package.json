@@ -23,6 +23,7 @@
 		"@sveltejs/kit": "^2.50.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
 		"@tailwindcss/vite": "^4.2.2",
+		"@types/node": "^25.5.2",
 		"drizzle-kit": "^0.31.10",
 		"svelte": "^5.54.0",
 		"svelte-check": "^4.4.2",
@@ -33,6 +34,8 @@
 		"wrangler": "^4.80.0"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1024.0",
+		"@aws-sdk/s3-request-presigner": "^3.1024.0",
 		"@cf-wasm/photon": "^0.3.4",
 		"drizzle-orm": "^0.45.2",
 		"zod": "^4.3.6"
