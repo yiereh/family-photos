@@ -11,12 +11,20 @@ const PresignUploadSchema = z.object({
 
 export const POST: RequestHandler = async ({ request, platform }) => {
 	const env = platform!.env;
-	const requestBody = PresignUploadSchema.safeParse(await request.json());
-	if (!requestBody.success) {
-		error(400, `bad request: ${z.treeifyError(requestBody.error)}`)
+
+	let body: unknown;
+	try {
+		body = await request.json();
+	} catch (err) {
+		error(400, 'invalid json');
 	}
 
-	const { filename, contentType } = requestBody.data;
+	const requestBody = PresignUploadSchema.safeParse(body);
+	if (!requestBody.success) {
+		error(400, `bad request: ${z.prettifyError(requestBody.error)}`)
+	}
+
+	const { contentType } = requestBody.data;
 	if (!contentType.startsWith('image/')) {
 		error(400, `image must be uploaded`)
 	}

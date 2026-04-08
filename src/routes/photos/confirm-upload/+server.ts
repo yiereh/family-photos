@@ -18,10 +18,17 @@ const ConfirmUploadSchema = z.object({
 export const POST: RequestHandler = async ({ request, locals, platform }) => {
 	const bucket = platform!.env.BUCKET;
 
+	let body: unknown;
+	try {
+		body = await request.json();
+	} catch (err) {
+		error(400, `invalid json: ${err}`)
+	}
+
 	// parse request json
-	const result = ConfirmUploadSchema.safeParse(await request.json());
+	const result = ConfirmUploadSchema.safeParse(body);
 	if (!result.success) {
-		error(400, "bad request");
+		error(400, `bad request: ${z.prettifyError(result.error)}`);
 	}
 	const { id, filename, contentType, description } = result.data;
 
