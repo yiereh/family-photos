@@ -10,6 +10,11 @@ export default defineConfig(async () => {
 	const migrations = await readD1Migrations(migrationsPath);
 
 	return {
+		test: {
+			include: ['tests/**/*.test.ts'],
+			exclude: ['e2e/**'],
+			passWithNoTests: true
+		},
 		plugins: [
 			cloudflareTest({
 				wrangler: { configPath: './wrangler.test.jsonc' },

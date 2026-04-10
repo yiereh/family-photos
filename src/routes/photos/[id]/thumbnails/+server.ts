@@ -6,7 +6,7 @@ export const GET: RequestHandler = async ({ platform, params, locals }) => {
   const bucket = platform!.env.BUCKET;
   const db = locals.db;
   const row = await db.select({ thumbnailKey: photos.thumbnailKey }).from(photos).where(eq(photos.id, params.id)).get();
-  if (!row) {
+  if (!row || !row.thumbnailKey) {
     return new Response('not found', { status: 404 })
   }
   const object = await bucket.get(row.thumbnailKey);

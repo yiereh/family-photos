@@ -3,16 +3,13 @@ import { json } from "@sveltejs/kit";
 import { inArray } from "drizzle-orm";
 import type { RequestHandler } from "./$types";
 import { z } from 'zod';
-
-const BatchDeleteSchema = z.object({
-  ids: z.array(z.string())
-})
+import { BatchDeleteRequest } from '$lib/api';
 
 // receives: {ids: string[]} 
 export const POST: RequestHandler = async ({ locals, request, platform }) => {
   const bucket = platform!.env.BUCKET;
   const db = locals.db;
-  const result = BatchDeleteSchema.safeParse(await request.json());
+  const result = BatchDeleteRequest.safeParse(await request.json());
   if (!result.success) {
     return new Response(`invalid request: ${z.prettifyError(result.error)}`, { status: 400 })
   }
@@ -24,10 +21,11 @@ export const POST: RequestHandler = async ({ locals, request, platform }) => {
 
   await db.delete(photos).where(inArray(photos.id, ids))
   await Promise.all(
-    photosToDelete.flatMap((photo) => [
-      bucket.delete(photo.originalKey),
-      bucket.delete(photo.thumbnailKey),
-    ])
+    photosToDelete.flatMap((photo) => {
+      const deletes = [bucket.delete(photo.originalKey)];
+      if (photo.thumbnailKey) deletes.push(bucket.delete(photo.thumbnailKey));
+      return deletes;
+    })
   )
 
   return json({ deleted: ids })

@@ -13,10 +13,9 @@ export const DELETE: RequestHandler = async ({ params, platform, locals }) => {
   }
 
   await db.delete(photos).where(eq(photos.id, params.id))
-  await Promise.all([
-    bucket.delete(photo.originalKey),
-    bucket.delete(photo.thumbnailKey),
-  ]);
+  const deletes = [bucket.delete(photo.originalKey)];
+  if (photo.thumbnailKey) deletes.push(bucket.delete(photo.thumbnailKey));
+  await Promise.all(deletes);
 
 
   return json({ deleted: params.id })
