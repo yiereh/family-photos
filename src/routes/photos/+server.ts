@@ -1,9 +1,61 @@
 import { json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { photos } from '$lib/server/db/schema'
-import { desc } from "drizzle-orm";
+import { createCursor, decodeCursor, encodeCursor, parseLimit, type CursorType } from "$lib/server/pagination";
+import { error } from "@sveltejs/kit";
+import { and, asc, gt, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
-export const GET: RequestHandler = async ({ request, locals }) => {
-  const results = await locals.db.select().from(photos).orderBy(desc(photos.uploadedAt));
-  return json(results);
+const DEFAULT_LIMIT = 20
+
+export const GET: RequestHandler = async ({ url, locals }) => {
+
+  const cursor = decodeCursor(url.searchParams.get("cursor"));
+  const limit = parseLimit(url.searchParams.get("limit")) ?? DEFAULT_LIMIT;
+  if (limit < 0) {
+    error(400, "bad request")
+  }
+
+  // if a cursor is given, query with (uploadedAt, id) > ($ts, $id) <=> (updateAt > $ts) OR (updateAt = $ts AND id > $id) LIMIT limit + 1 ORDER BY uploadedAt ASC to fetch all the photos starting from the cursor, 
+  // then see if last = reultts[limit], then limit + 1 th element exists, and if so, {ts: last.ts, id: last.id} is the next cursor, if not, then next cursor should be null
+
+  if (cursor) {
+    // SELECT * FROM photos WHERE ($cursor.ts, $cursor.id) < (uploadedAt, id) ORDER BY uploadedAt ASC, id ASC LIMIT limit + 1
+    const results = await locals.db.select()
+      .from(photos)
+      .where(
+        or(
+          gt(photos.uploadedAt, new Date(cursor.ts)),
+          and(eq(photos.uploadedAt, new Date(cursor.ts)), gt(photos.id, cursor.id))
+        )
+      )
+      .orderBy(asc(photos.uploadedAt), asc(photos.id))
+      .limit(limit + 1)
+
+    let nextCursor: CursorType | null = null
+    if (limit < results.length) { // nextCursor shall be prepared
+      const last = results[limit - 1]
+      nextCursor = createCursor(last.uploadedAt, last.id)
+    } else { }
+
+    // return the resultset and the cursor
+    return json({ items: results.slice(0, limit), nextCursor: encodeCursor(nextCursor) });
+
+  } else {
+    // no cursor provided, so take the LIMIT limits + 1 case, and see if a cursor should be made
+    // SELECT * FROM photos ORDER BY uploadedAt ASC, id ASC LIMIT limit + 1
+    const results = await locals.db.select()
+      .from(photos)
+      .orderBy(asc(photos.uploadedAt), asc(photos.id))
+      .limit(limit + 1);
+
+    let nextCursor: CursorType | null = null;
+    if (limit < results.length) {
+      // nextCursor should be created 
+      const last = results[limit - 1];
+      nextCursor = createCursor(last.uploadedAt, last.id)
+    } else { }
+
+    return json({ items: results.slice(0, limit), nextCursor: encodeCursor(nextCursor) })
+  }
 }
