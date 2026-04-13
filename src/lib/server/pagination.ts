@@ -18,19 +18,46 @@ const CursorSchema = z.object({
 
 export type CursorType = z.infer<typeof CursorSchema>;
 
-export function encodeCursor(cursor: CursorType | null): string | null {
-  if (!cursor) return null;
+const strToBufSource = (str: string) => new TextEncoder().encode(str)
+const extractKey = (keyStr: string) => {
+  return crypto.subtle.importKey(
+    'raw',
+    strToBufSource(keyStr),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ['sign', 'verify'],
+  )
+}
 
-  return btoa(JSON.stringify(cursor));
+export async function encodeCursor(cursor: CursorType | null, keyStr: string): Promise<string | null> {
+  if (!(cursor && keyStr)) return null;
+
+  const key = await extractKey(keyStr);
+  const payloadB64 = btoa(JSON.stringify(cursor));
+  const sig = await crypto.subtle.sign('HMAC', key, strToBufSource(payloadB64));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
+
+  return payloadB64 + '.' + sigB64;
 }
 
 
-// payload should be a JSON string with base64 encoding
-export function decodeCursor(payload: string | null): CursorType | null {
-  if (!payload) return null;
+// plStr is a JSON string with base64 encoding
+export async function decodeCursor(plStr: string | null, keyStr?: string): Promise<CursorType | null> {
+  if (!(plStr && keyStr)) return null;
+
+  const dot = plStr.lastIndexOf('.');
+  if (dot <= 0 || dot === plStr.length - 1) return null;
+
+  const payloadB64 = plStr.substring(0, dot); // still base64 encoded
+  const sigB64 = plStr.substring(dot + 1); // still base64 encoded
 
   try {
-    const raw = atob(payload);
+    const key = await extractKey(keyStr);
+    const sigBytes = Uint8Array.from(atob(sigB64), c => c.charCodeAt(0));
+    const res = await crypto.subtle.verify('HMAC', key, sigBytes, strToBufSource(payloadB64))
+    if (!res) return null;
+
+    const raw = atob(payloadB64);
     const result = CursorSchema.safeParse(JSON.parse(raw));
     if (!result.success) {
       console.log(`failed to parse cursor: ${z.prettifyError(result.error)}`);

@@ -23,5 +23,8 @@
 			"binding": "KV",
 			"id": "test"
 		}
-	]
+	],
+	"vars": {
+		"CURSOR_SECRET": "family-photos-test-hmac-key-not-for-production"
+	}
 }
