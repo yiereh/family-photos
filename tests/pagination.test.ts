@@ -24,8 +24,28 @@ describe('parseLimit', () => {
 		expect(parseLimit('0')).toBeNull();
 	});
 
-	it('returns negative values as-is', () => {
-		expect(parseLimit('-1')).toBe(-1);
+	it('returns null for negative values', () => {
+		expect(parseLimit('-1')).toBeNull();
+	});
+
+	it('accepts valid positive integers', () => {
+		expect(parseLimit('20')).toBe(20);
+	});
+
+	it('accepts the maximum allowed limit', () => {
+		expect(parseLimit('100')).toBe(100);
+	});
+
+	it('returns null for values above the maximum', () => {
+		expect(parseLimit('101')).toBeNull();
+	});
+
+	it('returns null for non-integer numbers', () => {
+		expect(parseLimit('1.5')).toBeNull();
+	});
+
+	it('returns null for strings with trailing garbage', () => {
+		expect(parseLimit('10abc')).toBeNull();
 	});
 });
 

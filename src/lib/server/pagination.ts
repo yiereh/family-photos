@@ -1,14 +1,18 @@
 import { z } from "zod";
 
+export const DEFAULT_LIMIT = 20
+const MAX_LIMIT = 100
+const LimitSchema = z.coerce.number().int().positive().max(MAX_LIMIT);
+
 export function parseLimit(param: string | null): number | null {
   if (!param) return null;
 
-  const limit = parseInt(param);
-  if (!limit) {
+  const result = LimitSchema.safeParse(param);
+  if (!result.success) {
     return null;
   }
 
-  return limit;
+  return result.data;
 }
 
 const CursorSchema = z.object({

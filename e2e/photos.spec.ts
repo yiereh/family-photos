@@ -5,7 +5,6 @@ const TINY_PNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
 	'base64'
 );
-const MIN_CURSOR_ID = '00000000-0000-4000-8000-000000000000';
 
 async function presignUpload(request: any, baseURL: string) {
 	for (let attempt = 0; attempt < 5; attempt++) {
@@ -19,10 +18,6 @@ async function presignUpload(request: any, baseURL: string) {
 	}
 
 	throw new Error('failed to presign upload after retries');
-}
-
-function encodeCursor(ts: number, id: string): string {
-	return Buffer.from(JSON.stringify({ ts, id }), 'utf8').toString('base64');
 }
 
 function getUploadedAtMs(photo: { uploadedAt: number | string }): number {
@@ -115,17 +110,19 @@ test.describe('GET /photos', () => {
 		expect(body.items.some((p: any) => p.id === id)).toBe(true);
 	});
 
-	test('paginates forward from a cursor without duplicates', async ({ request, baseURL }) => {
+	test('paginates forward from the newest page without duplicates', async ({
+		request,
+		baseURL,
+	}) => {
 		const uploadedIds: string[] = [];
 		const marker = `pagination-${Date.now()}`;
-		const startCursor = encodeCursor(Date.now() - 1_000, MIN_CURSOR_ID);
 
 		try {
 			for (let index = 0; index < 5; index++) {
 				uploadedIds.push(await uploadPhoto(request, baseURL!, `${marker}-${index}`));
 			}
 
-			const page1 = await listPhotosPage(request, baseURL!, { limit: 2, cursor: startCursor });
+			const page1 = await listPhotosPage(request, baseURL!, { limit: 2 });
 			expect(page1.response.ok()).toBe(true);
 			expect(page1.body.items).toHaveLength(2);
 			expect(page1.body.nextCursor).toEqual(expect.any(String));
@@ -141,9 +138,10 @@ test.describe('GET /photos', () => {
 			for (const photo of page2.body.items) {
 				expect(page1Ids.has(photo.id)).toBe(false);
 			}
+			// DESC walk: page1's last item is strictly newer than page2's first item
 			expect(
 				comparePhotos(page1.body.items[page1.body.items.length - 1], page2.body.items[0])
-			).toBeLessThan(0);
+			).toBeGreaterThan(0);
 
 			const pages = [page1.body, page2.body];
 			let nextCursor = page2.body.nextCursor;
@@ -157,20 +155,30 @@ test.describe('GET /photos', () => {
 
 			expect(pages[pages.length - 1].nextCursor).toBeNull();
 
-			const collectedItems = pages.flatMap((page) => page.items);
-			const collectedMarkedIds = collectedItems
-				.filter((photo: any) => photo.description?.startsWith(marker))
-				.map((photo: any) => photo.id);
+			const collectedMarkedItems = pages
+				.flatMap((page) => page.items)
+				.filter((photo: any) => photo.description?.startsWith(marker));
+			const collectedMarkedIds = collectedMarkedItems.map((photo: any) => photo.id);
 
-			expect(collectedMarkedIds).toEqual(uploadedIds);
+			expect(collectedMarkedIds.toSorted()).toEqual(uploadedIds.toSorted());
+			for (let index = 1; index < collectedMarkedItems.length; index++) {
+				expect(comparePhotos(collectedMarkedItems[index - 1], collectedMarkedItems[index])).toBeGreaterThan(0);
+			}
 		} finally {
 			await deletePhotos(request, baseURL!, uploadedIds);
 		}
 	});
 
-	test('rejects negative limit', async ({ request, baseURL }) => {
-		const { response } = await listPhotosPage(request, baseURL!, { limit: -1 });
-		expect(response.status()).toBe(400);
+	test('falls back to the default limit for invalid values', async ({ request, baseURL }) => {
+		const defaultPage = await listPhotosPage(request, baseURL!);
+		expect(defaultPage.response.ok()).toBe(true);
+		const defaultCount = defaultPage.body.items.length;
+
+		for (const limit of ['0', '-5', 'abc', '1.5', '10abc', '101', '999999']) {
+			const { response, body } = await listPhotosPage(request, baseURL!, { limit });
+			expect(response.ok()).toBe(true);
+			expect(body.items).toHaveLength(defaultCount);
+		}
 	});
 });
 
