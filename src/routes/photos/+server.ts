@@ -4,6 +4,8 @@ import { photos } from '$lib/server/db/schema'
 import { createCursor, decodeCursor, DEFAULT_LIMIT, encodeCursor, parseLimit, type CursorType } from "$lib/server/pagination";
 import { and, desc, lt, or } from "drizzle-orm";
 import { eq } from "drizzle-orm";
+import { createPresignedViewUrl, createR2S3Client } from "$lib/server/r2";
+import type { ListPhotosResponse, PhotoListItem } from "$lib/api";
 
 export const GET: RequestHandler = async ({ url, locals, platform }) => {
 
@@ -31,18 +33,32 @@ export const GET: RequestHandler = async ({ url, locals, platform }) => {
       .limit(limit + 1)
 
     let _nextCursor: CursorType | null = null
+    const lastIndex = limit - 1;
     if (limit < results.length) { // nextCursor shall be prepared
       // the last element from which cursor should be built is at index limit-1 where results.length == limit + 1
-      const last = results[limit - 1]
+      const last = results[lastIndex]
       _nextCursor = createCursor(last.uploadedAt, last.id)
     } else { }
 
+    const client = createR2S3Client(platform!.env);
+    const items = await Promise.all(results.slice(0, limit).map(async (row) => ({
+      ...row,
+      uploadedAt: row.uploadedAt.getTime(),
+      thumbnailUrl: row.thumbnailKey
+        ?
+        await createPresignedViewUrl(
+          client,
+          platform!.env.R2_BUCKET_NAME,
+          row.thumbnailKey
+        )
+        : null,
+    }))) satisfies PhotoListItem[];
+
     // return the resultset and the cursor
     return json({
-      // [0, limit[ portion of results
-      items: results.slice(0, limit),
+      items,
       nextCursor: await encodeCursor(_nextCursor, platform!.env.CURSOR_SECRET)
-    });
+    } satisfies ListPhotosResponse);
 
   } else {
     // no cursor provided, so take the LIMIT limits + 1 case, and see if a cursor should be made
@@ -63,9 +79,24 @@ export const GET: RequestHandler = async ({ url, locals, platform }) => {
       _nextCursor = createCursor(last.uploadedAt, last.id)
     } else { }
 
+    const client = createR2S3Client(platform!.env);
+    const items = await Promise.all(
+      results.slice(0, limit).map(async (row) => ({
+        ...row,
+        uploadedAt: row.uploadedAt.getTime(),
+        thumbnailUrl: row.thumbnailKey
+          ?
+          await createPresignedViewUrl(
+            client,
+            platform!.env.R2_BUCKET_NAME,
+            row.thumbnailKey
+          )
+          : null,
+      }))) satisfies PhotoListItem[];
+
     return json({
-      items: results.slice(0, limit),
+      items,
       nextCursor: await encodeCursor(_nextCursor, platform!.env.CURSOR_SECRET)
-    })
+    } satisfies ListPhotosResponse);
   }
 }

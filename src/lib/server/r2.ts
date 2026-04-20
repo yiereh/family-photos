@@ -54,3 +54,11 @@ export async function fileExistsInBucket(client: S3Client, bucketName: string, k
 	}
 	return true;
 }
+
+export async function createPresignedViewUrl(client: S3Client, bucketName: string, key: string, expiresInSec: number = 60 * 60) {
+	return await getSignedUrl(client, new GetObjectCommand({
+		Bucket: bucketName,
+		Key: key,
+		ResponseContentDisposition: "inline"
+	}), { expiresIn: expiresInSec })
+}

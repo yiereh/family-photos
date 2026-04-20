@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+import { ListPhotosResponse } from '../src/lib/api';
+
 // 1x1 red pixel PNG
 const TINY_PNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
@@ -182,54 +184,90 @@ test.describe('GET /photos', () => {
 	});
 });
 
-test.describe('GET /photos/:id/thumbnails', () => {
-	test('returns a thumbnail', async ({ request, baseURL }) => {
+test.describe('GET /photos — PhotoListItem shape', () => {
+	test('validates against the ListPhotosResponse zod schema', async ({ request, baseURL }) => {
+		await uploadPhoto(request, baseURL!);
+
+		const body = await listPhotos(request, baseURL!);
+		expect(() => ListPhotosResponse.parse(body)).not.toThrow();
+	});
+
+	test('returns uploadedAt as epoch-ms number', async ({ request, baseURL }) => {
 		const id = await uploadPhoto(request, baseURL!);
 
-		const res = await request.get(`${baseURL}/photos/${id}/thumbnails`);
-		expect(res.ok()).toBe(true);
-		expect(res.headers()['cache-control']).toContain('immutable');
+		const body = await listPhotos(request, baseURL!);
+		const photo = body.items.find((p: any) => p.id === id);
+		expect(photo).toBeDefined();
+		expect(typeof photo.uploadedAt).toBe('number');
+		expect(Number.isInteger(photo.uploadedAt)).toBe(true);
 	});
 
-	test('returns 404 for nonexistent photo', async ({ request, baseURL }) => {
-		const res = await request.get(`${baseURL}/photos/nonexistent/thumbnails`);
-		expect(res.status()).toBe(404);
+	test('thumbnailUrl resolves to the uploaded thumbnail bytes', async ({ request, baseURL }) => {
+		const id = await uploadPhoto(request, baseURL!);
+
+		const body = await listPhotos(request, baseURL!);
+		const photo = body.items.find((p: any) => p.id === id);
+		expect(typeof photo.thumbnailUrl).toBe('string');
+
+		const thumbRes = await request.fetch(photo.thumbnailUrl);
+		expect(thumbRes.ok()).toBe(true);
+		const bytes = await thumbRes.body();
+		expect(bytes.equals(TINY_PNG)).toBe(true);
 	});
 
-	test('returns 404 when thumbnail is missing', async ({ request, baseURL }) => {
-		// upload without thumbnail
+	test('thumbnailUrl serves inline (not attachment)', async ({ request, baseURL }) => {
+		const id = await uploadPhoto(request, baseURL!);
+
+		const body = await listPhotos(request, baseURL!);
+		const photo = body.items.find((p: any) => p.id === id);
+
+		const thumbRes = await request.fetch(photo.thumbnailUrl);
+		expect(thumbRes.ok()).toBe(true);
+		const disposition = thumbRes.headers()['content-disposition'] ?? 'inline';
+		expect(disposition).not.toContain('attachment');
+	});
+
+	test('thumbnailUrl is null when the photo has no thumbnail', async ({ request, baseURL }) => {
 		const presign = await presignUpload(request, baseURL!);
 
-		await request.fetch(presign.originalUploadUrl, {
+		const origPut = await request.fetch(presign.originalUploadUrl, {
 			method: 'PUT',
 			headers: { 'Content-Type': 'image/png' },
 			data: TINY_PNG,
 		});
+		expect(origPut.ok()).toBe(true);
 
-		// confirm without thumbnailType
-		await request.post(`${baseURL}/photos/confirm-upload`, {
-			data: { id: presign.id, filename: 'test.png', originalType: 'image/png' },
+		const confirmRes = await request.post(`${baseURL}/photos/confirm-upload`, {
+			data: { id: presign.id, filename: 'nothumb.png', originalType: 'image/png' },
 		});
+		expect(confirmRes.status()).toBe(201);
 
-		const res = await request.get(`${baseURL}/photos/${presign.id}/thumbnails`);
-		expect(res.status()).toBe(404);
-	});
-});
-
-test.describe('GET /photos/:id/download', () => {
-	test('returns the original file', async ({ request, baseURL }) => {
-		const id = await uploadPhoto(request, baseURL!);
-
-		const res = await request.get(`${baseURL}/photos/${id}/download`);
-		expect(res.ok()).toBe(true);
-		expect(res.headers()['content-type']).toBe('image/png');
-		expect(res.headers()['content-disposition']).toContain('attachment');
-		expect(res.headers()['content-disposition']).toContain('test.png');
+		try {
+			const body = await listPhotos(request, baseURL!);
+			const photo = body.items.find((p: any) => p.id === presign.id);
+			expect(photo).toBeDefined();
+			expect(photo.thumbnailUrl).toBeNull();
+		} finally {
+			await deletePhotos(request, baseURL!, [presign.id]);
+		}
 	});
 
-	test('returns 404 for nonexistent photo', async ({ request, baseURL }) => {
-		const res = await request.get(`${baseURL}/photos/nonexistent/download`);
-		expect(res.status()).toBe(404);
+	test('does not leak the peek row when a next page exists', async ({ request, baseURL }) => {
+		// regression guard: earlier versions mapped results directly (limit+1 items)
+		// when nextCursor was set.
+		const uploadedIds: string[] = [];
+		try {
+			for (let i = 0; i < 3; i++) {
+				uploadedIds.push(await uploadPhoto(request, baseURL!));
+			}
+
+			const { response, body } = await listPhotosPage(request, baseURL!, { limit: 2 });
+			expect(response.ok()).toBe(true);
+			expect(body.items).toHaveLength(2);
+			expect(body.nextCursor).toEqual(expect.any(String));
+		} finally {
+			await deletePhotos(request, baseURL!, uploadedIds);
+		}
 	});
 });
 
@@ -243,7 +281,7 @@ test.describe('DELETE /photos/:id', () => {
 		expect(body.deleted).toBe(id);
 
 		// verify it's gone
-		const check = await request.get(`${baseURL}/photos/${id}/thumbnails`);
+		const check = await request.delete(`${baseURL}/photos/${id}`);
 		expect(check.status()).toBe(404);
 	});
 

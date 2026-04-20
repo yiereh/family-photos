@@ -60,8 +60,14 @@ export const PhotoItem = z.object({
 	uploadedAt: z.number(),
 });
 
+// for the GET response against /photos
+// for each entry obtained from db, attach a thumbnailUrl
+export const PhotoListItem = PhotoItem.extend({
+	thumbnailUrl: z.url().nullable(),
+})
+
 export const ListPhotosResponse = z.object({
-	items: z.array(PhotoItem),
+	items: z.array(PhotoListItem),
 	nextCursor: z.string().nullable(),
 });
 
@@ -75,4 +81,5 @@ export type BatchDeleteRequest = z.infer<typeof BatchDeleteRequest>;
 export type BatchDeleteResponse = z.infer<typeof BatchDeleteResponse>;
 export type DeletePhotoResponse = z.infer<typeof DeletePhotoResponse>;
 export type PhotoItem = z.infer<typeof PhotoItem>;
+export type PhotoListItem = z.infer<typeof PhotoListItem>;
 export type ListPhotosResponse = z.infer<typeof ListPhotosResponse>;
